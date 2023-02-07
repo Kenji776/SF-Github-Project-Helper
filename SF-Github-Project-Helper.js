@@ -318,6 +318,7 @@ async function fetchChangeSets(changeSetNames, copyToProjectFolder) {
 				copyPackageIntoProjectFolder(changeSetName);
 				modifiedFiles = [...new Set(modifiedFiles)];
 				watcher.close();
+				return modifiedFiles;
 			}
 		}
     }
