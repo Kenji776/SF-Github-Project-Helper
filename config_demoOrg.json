@@ -1,0 +1,11 @@
+{
+	"githubRepoUrl":"https://github.com/Kenji776/Demo-SF-Repo.git",
+	"gitUsername":"Kenji776",
+	"projectName":"Demo_SF_Sandbox",
+	"skipExistingChangeSets" : true,
+	"salesforceLoginURL":"https://login.salesforce.com",
+	"downloadedPackagesFolder" : "downloaded_packages",
+	"changesetJSONFile": "changeSetNames.json",
+	"salesforceUsername":"Kenji776+trailhead@gmail.com"
+}
+
