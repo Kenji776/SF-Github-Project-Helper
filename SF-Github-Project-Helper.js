@@ -37,7 +37,7 @@ let config = {
 };
 
 async function init() {
-    log("                                    Changeset to GIT 1.0!\r\n", true, "green");
+    log("                                    Salesforce/Github Project Helper 1.0\r\n", true, "green");
     log("                                     Author: Dan Llewellyn\r\n", true);
 
     let d = new Date();
@@ -318,6 +318,7 @@ async function fetchChangeSets(changeSetNames, copyToProjectFolder) {
 				copyPackageIntoProjectFolder(changeSetName);
 				modifiedFiles = [...new Set(modifiedFiles)];
 				watcher.close();
+				return modifiedFiles;
 			}
 		}
     }
