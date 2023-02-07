@@ -5,7 +5,7 @@
  * @Description This script will download a changeset from a specified Salesforce org, create a branch in GIT, push the contents of the changeset into the branch, then push it to Git.
  */
  
-const configFileName = "config.json";
+const configFileName = "config_demoOrg.json";
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -80,30 +80,30 @@ async function displayMenu(){
 			let repoURL = await prompt('GIT Repo URL: ');
 			let userName = await prompt('GIT Username: ');
 	
-			connectToRepo(userName,repoURL);
+			await connectToRepo(userName,repoURL);
 			break;
 		case '2':
 			await runCommand('git remote show origin');
 			break;
 		case '3':
 			let projectName =  await prompt('Enter Name for this project: ');
-			setupSFDXProject(projectName);
+			await setupSFDXProject(projectName);
 			
 			let orgAlias =  await prompt('Enter Name of org (can be the same as the project): ');
-			authorizeSFOrg(orgAlias);
+			await authorizeSFOrg(orgAlias);
 			
 			break;
 		case '4':
 			log(`Connected to org using username: ${config.username}`, true,'green');
 			break;
 		case '5':
-			getChangesetsFromFile();
+			await getChangesetsFromFile();
 			break;
 		case '6':
-			getChangeSetsFromInput();
+			await getChangeSetsFromInput();
 			break;
 		case '7':
-			getPackageXML();
+			await getPackageXML();
 			break;
 		case '8':
 			console.log(config);
@@ -113,7 +113,7 @@ async function displayMenu(){
 			break;
 	}
 	
-	//displayMenu();
+	displayMenu();
 }
 
 async function configWizard(){
@@ -121,7 +121,7 @@ async function configWizard(){
 	if(!fs.existsSync(config.projectName)) fs.mkdirSync(config.projectName);
 	
 	//change working directory to new folder
-	process.chdir(config.projectName);
+	navigateToProjectDir();
 	
 	//init git with the repo
 	await connectToRepo(config.gitUsername, config.githubRepoUrl);
@@ -134,6 +134,8 @@ async function configWizard(){
 	
 	//authorize the org.
 	await authorizeSFOrg(config.salesforceLoginURL,config.projectName);
+	
+	log('Salesforce connected and git repo configured!',true,'green');
 	
 }
 
@@ -159,7 +161,10 @@ async function connectToRepo(userName, repoURL){
 }
 
 
-
+/**
+* @Description initilizes the SFDX project in the project folder
+* @Param projectName a string which is the name of the project.
+*/
 async function setupSFDXProject(projectName){	
 	log(`Setting up Salesforce DX Project ${projectName}`,true);
 	if (fs.existsSync(`${projectName}\\.sfdx`)){
@@ -173,7 +178,7 @@ async function setupSFDXProject(projectName){
 * @Description uses SFDX to connect to an org and sets it as default.
 */
 async function authorizeSFOrg(loginUrl, orgAlias){
-	log(`Authorizing Org ${orgAlias}`,true);
+	log(`Authorizing Org ${orgAlias}. Wait for browser window to open and login...`,true);
 	await runCommand(`sfdx auth:web:login --instanceurl ${loginUrl} --setdefaultusername`);
 }
 
@@ -197,27 +202,52 @@ async function getChangeSetsFromInput(){
 }
 
 async function getPackageXML(){
+	navigateToProjectDir();
+	console.log('Current Directory: ' + process.cwd());
 	const packageFileLocation = await prompt('Please enter the location/name of your package.xml file: ');
-	
 	if (!fs.existsSync(packageFileLocation)) log('File not found. Please check the location and try again',true,'red');
-	else {
+	else {		
 		var branchName = '';
 		var validName = false;
 		while(!validName){
 			branchName =  await prompt('Enter the name for your Git branch (story|bug/user-story-name): ');
 			validName = validateGitBranchName(branchName);
-			console.log(`Name is valid?: ${validName}`);
 		}
 		await createGitBranch(branchName);
 		
 		//checkout the branch
 		await changeToGitBranch(branchName);		
 		
-		await runCommand(`sfdx force:source:retrieve -x ${packageFileLocation} -–verbose`);
+		log('Fetching package contents',true,'green');
+		await runCommand(`sfdx force:source:retrieve -x ${packageFileLocation} -u ${config.salesforceUsername}`);
+
+		log('Staging modified/created files',true,'green');
+		await runCommand('git add -A');
+		
+		//TODO: Attempt to read description from package.xml here if it exists.
+		let commitMessage  = await prompt('Please commit description (what is this branch for?): ');
+		
+		await gitCommit(commitMessage);
+		
+		await pushBranchToRemote(branchName);
+		
 		
 	}
 }
 
+/**
+* @Description navigates the current working directory to that of the project root folder.
+* @Todo Make this much more robust. It really sucks right now.
+*/
+function navigateToProjectDir(){
+	if(!process.cwd().endsWith(config.projectName)) process.chdir(config.projectName);
+}
+
+/**
+* @Description validates that a given string is a valid name for a github branch. 
+* @Param branchName the string to check for validity
+* @Return boolean value. True if the string is valid, false if it is not.
+*/
 function validateGitBranchName(branchName){
 	let branchRegex = '^(main|development|master|(features|tests|(bug|hot)fix)(\/[a-zA-Z0-9]+([-_][a-zA-Z0-9]+)*){1,2}|release\/[0-9]+(\.[0-9]+)*(-(alpha|beta|rc)[0-9]*)?)$';
 	const regex = new RegExp(branchRegex);
@@ -230,22 +260,57 @@ function validateGitBranchName(branchName){
 /**
  * @Description Uses SFDX CLI to download all the given change sets.
  * @Param changeSetName an array of strings that are changeset names.
+ * @param copyToProjectFolder boolean. Should the downloaded change set contents be copied to the project folder?
  * @Return true when all change sets have finished downloading.
  */
-async function fetchChangeSets(changeSetNames) {
-	
-	if (!fs.existsSync(config.rootFolder)) fs.mkdirSync(config.rootFolder);
+async function fetchChangeSets(changeSetNames, copyToProjectFolder) {
+	if (!fs.existsSync(config.downloadedPackagesFolder)) fs.mkdirSync(config.downloadedPackagesFolder);
 	
     for (const changeSetName of changeSetNames) {
-        if (config.skipExistingChangeSets && fs.existsSync(`${config.rootFolder}\\${changeSetName}`)) {
+        if (config.skipExistingChangeSets && fs.existsSync(`${config.downloadedPackagesFolder}\\${changeSetName}`)) {
             log(`Change set: "${changeSetName}" already exists and skipExistingChangeSets is set to true. Skipping download`);
         } else {
             log(`Fetching: "${changeSetName}"...`);
 
-            await runCommand("sfdx", [`force:mdapi:retrieve`, `-s`, `-u "${config.salesforceUsername}"`, `-r ./${config.rootFolder}`, `-p "${changeSetName}"`, `--unzip`, `--zipfilename "${changeSetName}.zip"`]);
-        }
+			//download the contents of the change set
+            await runCommand("sfdx", [`force:mdapi:retrieve`, `-s`, `-u "${config.salesforceUsername}"`, `-r ./${config.downloadedPackagesFolder}`, `-p "${changeSetName}"`, `--unzip`, `--zipfilename "${changeSetName}.zip"`]);
+        
+			//move the files from the download location into the project folder
+			if(copyToProjectFolder) copyPackageIntoProjectFolder(changeSetName);
+		}
     }
     return true;
+}
+
+function copyPackageIntoProjectFolder(packageName){
+	copyFolderRecursiveSync(`${config.downloadedPackagesFolder}\\${packageName}`, config.projectName )
+}
+/**
+* @Description copies all contents of source directory into target directory
+* @Param source string that is the path of the source folder
+* @Param target string that is the path of the destination folder
+*/
+function copyFolderRecursiveSync( source, target ) {
+    var files = [];
+
+    // Check if folder needs to be created or integrated
+    var targetFolder = path.join( target, path.basename( source ) );
+    if ( !fs.existsSync( targetFolder ) ) {
+        fs.mkdirSync( targetFolder );
+    }
+
+    // Copy
+    if ( fs.lstatSync( source ).isDirectory() ) {
+        files = fs.readdirSync( source );
+        files.forEach( function ( file ) {
+            var curSource = path.join( source, file );
+            if ( fs.lstatSync( curSource ).isDirectory() ) {
+                copyFolderRecursiveSync( curSource, targetFolder );
+            } else {
+                copyFileSync( curSource, targetFolder );
+            }
+        } );
+    }
 }
 
 async function populateAndPushBranches(branchNames){
@@ -261,7 +326,7 @@ async function populateAndPushBranches(branchNames){
 		await fetchChangeSets([branchName]);
 		
 		//add the related folder to the branch
-		await addFolderToBranch(`${config.rootFolder}\\${branchName}`);
+		await addFolderToBranch(`${config.downloadedPackagesFolder}\\${branchName}`);
 		
 		//set our commit message from the package.xml description
 		let packageXMLJSON = getPackageXMLAsJson(branchName);
@@ -292,7 +357,7 @@ function saveConfig(){
 }
 function getPackageXMLAsJson(folderName){
 	let packageXMLAsJson = {};
-	const packageXMLAsString = fs.readFileSync(`${config.rootFolder}\\${folderName}\\package.xml`, function (err) {
+	const packageXMLAsString = fs.readFileSync(`${config.downloadedPackagesFolder}\\${folderName}\\package.xml`, function (err) {
         log("File not found or unreadable. Skipping import" + err.message, true, "red");
         return null;
     });
@@ -376,12 +441,6 @@ async function checkIfBranchExists(branchName){
 function clearScreen(){
 	console.log('\033[2J');
 	process.stdout.write('\033c');
-	
-	/*
-	var lines = process.stdout.getWindowSize()[1];
-	for(var i = 0; i < lines; i++) {
-		console.log('\r\n');
-	}*/
 }
 /**
  * @Description Runs a shell command.
