@@ -75,39 +75,45 @@ async function displayMenu(){
 	switch (menuChoice) {
 		case '0':
 			await configWizard();
+			
 			break;
 		case '1':
-			let repoURL = await prompt('GIT Repo URL: ');
-			let userName = await prompt('GIT Username: ');
-	
+			let repoURL = await prompt('Git Repo URL: ');
+			let userName = await prompt('Git Username: ');	
 			await connectToRepo(userName,repoURL);
 			break;
+			
 		case '2':
 			await runCommand('git remote show origin');
 			break;
+			
 		case '3':
 			let projectName =  await prompt('Enter Name for this project: ');
 			await setupSFDXProject(projectName);
-			
 			let orgAlias =  await prompt('Enter Name of org (can be the same as the project): ');
 			await authorizeSFOrg(orgAlias);
-			
 			break;
+			
 		case '4':
 			log(`Connected to org using username: ${config.username}`, true,'green');
 			break;
+			
 		case '5':
 			await getChangesetsFromFile();
 			break;
+			
 		case '6':
 			await getChangeSetsFromInput();
 			break;
+			
 		case '7':
 			await getPackageXML();
 			break;
+			
 		case '8':
 			console.log(config);
 			break;
+			
 		case '9':
 			finish();
 			break;
@@ -149,6 +155,7 @@ async function connectToRepo(userName, repoURL){
 		return;
 	}
 
+	log(`Cloning git repo into ${process.cwd()}`,true,'green');
 	
 	//combine in the fomat of https://username@github.com/author/Changeset/repo.git
 	let position = 8;
@@ -166,7 +173,7 @@ async function connectToRepo(userName, repoURL){
 * @Param projectName a string which is the name of the project.
 */
 async function setupSFDXProject(projectName){	
-	log(`Setting up Salesforce DX Project ${projectName}`,true);
+	log(`Setting up Salesforce DX Project ${projectName}`,true,'green');
 	if (fs.existsSync(`${projectName}\\.sfdx`)){
 		log('SFDX Project folder already exists. Skipping project creation',true,'yellow');
 		return;
@@ -178,7 +185,7 @@ async function setupSFDXProject(projectName){
 * @Description uses SFDX to connect to an org and sets it as default.
 */
 async function authorizeSFOrg(loginUrl, orgAlias){
-	log(`Authorizing Org ${orgAlias}. Wait for browser window to open and login...`,true);
+	log(`Authorizing Org ${orgAlias}. Wait for browser window to open and login...`,true,'green');
 	await runCommand(`sfdx auth:web:login --instanceurl ${loginUrl} --setdefaultusername`);
 }
 
@@ -217,21 +224,31 @@ async function getPackageXML(){
 		
 		//checkout the branch
 		await changeToGitBranch(branchName);		
-		
+
+		var modifiedFiles = [];
+		const watcher = fs.watch('./', {recursive: true}, (eventType, filename) => {
+			if(filename.endsWith('.xml')) modifiedFiles.push(filename);
+		})
+	
 		log('Fetching package contents',true,'green');
 		await runCommand(`sfdx force:source:retrieve -x ${packageFileLocation} -u ${config.salesforceUsername}`);
 
-		log('Staging modified/created files',true,'green');
-		await runCommand('git add -A');
+		//remove duplicates.
+		modifiedFiles = [...new Set(modifiedFiles)];
 		
+		watcher.close();
+		
+		log('Staging modified/created files',true,'green');		
+		for(const fileName of modifiedFiles){
+			log(`Adding file ${fileName} to branch`,true,'green');
+			await runCommand(`git add ${fileName}`);
+		}
 		//TODO: Attempt to read description from package.xml here if it exists.
 		let commitMessage  = await prompt('Please commit description (what is this branch for?): ');
 		
 		await gitCommit(commitMessage);
 		
 		await pushBranchToRemote(branchName);
-		
-		
 	}
 }
 
