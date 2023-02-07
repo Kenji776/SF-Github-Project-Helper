@@ -74,7 +74,7 @@ async function displayMenu(){
 	
 	switch (menuChoice) {
 		case '0':
-			configWizard();
+			await configWizard();
 			break;
 		case '1':
 			let repoURL = await prompt('GIT Repo URL: ');
@@ -157,7 +157,7 @@ async function connectToRepo(userName, repoURL){
 	saveConfig();
 	
 	await runCommand(`git init`);
-	await runCommand(`git clone ${config.repoURL}`);
+	await runCommand(`git clone ${config.repoURL} .`);
 }
 
 
