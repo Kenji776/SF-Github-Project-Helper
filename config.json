@@ -1,6 +1,6 @@
 {
   "skipExistingChangeSets": true,
-  "rootFolder": "packages",
+  "downloadedPackagesFolder": "downloaded_packages",
   "salesforceUsername": "",
   "changesetJSONFile": "changeSetNames.json",
   "githubRepoUrl": "",
