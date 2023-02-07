@@ -58,17 +58,17 @@ async function init() {
 
 async function displayMenu(){
 	//clearScreen();
-	log('\n\nPlease select option',true);
-	log('0) Config Wizard (Import Settings from config file)',true);
-	log('1) Connect GIT Repo',true);
-	log('2) Display GIT Repo Information',true);
-	log('3) Setup SFDX Project',true);
-	log('4) Display SFDX Information',true);
-	log('5) Push Changesets to GIT from config file',true);
-	log('6) Push Changesets to GIT by entering names',true);
-	log('7) Push Package.xml file contents to GIT',true);
-	log('8) View Config File Information',true);
-	log('9) Exit',true);
+	console.log('\n\nPlease select option');
+	console.log('0) Config Wizard (Import Settings from config file)');
+	console.log('1) Connect GIT Repo');
+	console.log('2) Display GIT Repo Information');
+	console.log('3) Setup SFDX Project');
+	console.log('4) Display SFDX Information');
+	console.log('5) Push Changesets to GIT from config file');
+	console.log('6) Push Changesets to GIT by entering names');
+	console.log('7) Push Package.xml file contents to GIT');
+	console.log('8) View Config File Information');
+	console.log('9) Exit');
 	
 	let menuChoice = await prompt('\nEnter Selection: ');
 	
@@ -126,14 +126,9 @@ async function configWizard(){
 	//create the project directory
 	if(!fs.existsSync(config.projectName)) fs.mkdirSync(config.projectName);
 	
-	//change working directory to new folder
-	navigateToProjectDir();
 	
 	//init git with the repo
 	await connectToRepo(config.gitUsername, config.githubRepoUrl);
-	
-	//change directory back up to root so the sfdx commands will write into the project folder.
-	process.chdir('..');
 	
 	//init the SFDX project
 	await setupSFDXProject(config.projectName);
@@ -150,21 +145,29 @@ async function configWizard(){
 */
 async function connectToRepo(userName, repoURL){
 	
-	if (fs.existsSync('.git')){
+	if (fs.existsSync(`${config.projectName}\\.git`)){
 		log('GIT Folder already exists. Please delete .git folder before attempting to clone the repository',true,'yellow');
 		return;
 	}
 
 	log(`Cloning git repo into ${process.cwd()}`,true,'green');
-	
+
+	navigateToProjectDir();	
 	//combine in the fomat of https://username@github.com/author/Changeset/repo.git
 	let position = 8;
 	config.repoURL = [repoURL.slice(0, position), userName+'@', repoURL.slice(position)].join('');
-	console.log(config.repoURL);
-	saveConfig();
+	console.log('Repo location set to: ' + config.repoURL);
+
 	
-	await runCommand(`git init`);
-	await runCommand(`git clone ${config.repoURL} .`);
+	//await runCommand(`git init`,[],true);
+	
+	let menuChoice = await prompt('\nPausing.... ');
+	
+	await runCommand(`git clone ${config.repoURL} .`,[],true);
+	
+	//change directory back up to root so the sfdx commands will write into the project folder.
+	process.chdir('..');
+	saveConfig();
 }
 
 
@@ -450,7 +453,6 @@ async function gitCommit(commitMessage){
 
 async function checkIfBranchExists(branchName){
 	let output = await runCommand(`git branch -l ${branchName})`);
-	console.log(`result of branch query ${output}`);
 	if(output.length > 0 || output == 0) return true;
 	else return false;
 }
@@ -465,16 +467,16 @@ function clearScreen(){
  * @Param arguments an array of arguments to pass to the command.
  * @Return javascript promise object that contains the result of the command execution
  */
-function runCommand(command, arguments) {
+function runCommand(command, arguments, nolog) {
     let p = spawn(command, arguments, { shell: true, windowsVerbatimArguments: true });
     return new Promise((resolveFunc) => {
         p.stdout.on("data", (x) => {
             process.stdout.write(x.toString());
-            log(x.toString());
+            if(!nolog) log(x.toString());
         });
         p.stderr.on("data", (x) => {
             process.stderr.write(x.toString());
-            log(x.toString());
+            if(!nolog) log(x.toString());
         });
         p.on("exit", (code) => {
             resolveFunc(code);
