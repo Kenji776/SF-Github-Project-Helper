@@ -1,0 +1,10 @@
+{
+  "skipExistingChangeSets": true,
+  "rootFolder": "packages",
+  "salesforceUsername": "",
+  "changesetJSONFile": "changeSetNames.json",
+  "githubRepoUrl": "",
+  "gitUsername": "",
+  "projectName": "",
+  "salesforceLoginURL": ""
+}
