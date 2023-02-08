@@ -5,7 +5,7 @@
  * @Description This script will download a changeset from a specified Salesforce org, create a branch in GIT, push the contents of the changeset into the branch, then push it to Git.
  */
  
-const configFileName = "config_demoOrg.json";
+const configFileName = "config.json";
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
