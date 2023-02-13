@@ -95,7 +95,7 @@ async function displayMenu(){
 			break;
 			
 		case '4':
-			log(`Connected to org using username: ${config.username}`, true,'green');
+			log(`Connected to org using username: ${config.salesforceUsername}`, true,'green');
 			break;
 			
 		case '5':
@@ -153,15 +153,15 @@ async function connectToRepo(userName, repoURL){
 	log(`Cloning git repo into ${process.cwd()}`,true,'green');
 
 	navigateToProjectDir();	
-	//combine in the fomat of https://username@github.com/author/Changeset/repo.git
-	let position = 8;
-	config.repoURL = [repoURL.slice(0, position), userName+'@', repoURL.slice(position)].join('');
-	console.log('Repo location set to: ' + config.repoURL);
+	if(config.githubRepoUrl.indexOf('@') == -1){
+		//combine in the fomat of https://username@github.com/author/Changeset/repo.git
+		let position = 8;
+		config.githubRepoUrl = [repoURL.slice(0, position), userName+'@', repoURL.slice(position)].join('');
+	}
+	console.log('Repo location set to: ' + config.githubRepoUrl);
 
 	
 	//await runCommand(`git init`,[],true);
-	
-	let menuChoice = await prompt('\nPausing.... ');
 	
 	await runCommand(`git clone ${config.repoURL} .`,[],true);
 	
