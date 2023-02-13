@@ -1,10 +1,13 @@
 {
   "skipExistingChangeSets": true,
+  "rootFolder": "packages",
+  "username": "",
+  "changesetJSONFile": "changeSetNames.json",
   "downloadedPackagesFolder": "downloaded_packages",
   "salesforceUsername": "",
-  "changesetJSONFile": "changeSetNames.json",
   "githubRepoUrl": "",
   "gitUsername": "",
   "projectName": "",
-  "salesforceLoginURL": ""
+  "salesforceLoginURL": "https://test.salesforce.com",
+  "githubPersonalAccessToken": ""
 }

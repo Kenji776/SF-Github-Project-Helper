@@ -128,7 +128,7 @@ async function configWizard(){
 	
 	
 	//init git with the repo
-	await connectToRepo(config.gitUsername, config.githubRepoUrl);
+	await connectToRepo(config.gitUsername, config.githubPersonalAccessToken, config.githubRepoUrl);
 	
 	//init the SFDX project
 	await setupSFDXProject(config.projectName);
@@ -143,7 +143,7 @@ async function configWizard(){
 /**
 * @Description Initilizes GIT in the current folder and clones the given repo with the given username
 */
-async function connectToRepo(userName, repoURL){
+async function connectToRepo(userName, pat, repoURL){
 	
 	if (fs.existsSync(`${config.projectName}\\.git`)){
 		log('GIT Folder already exists. Please delete .git folder before attempting to clone the repository',true,'yellow');
@@ -153,17 +153,20 @@ async function connectToRepo(userName, repoURL){
 	log(`Cloning git repo into ${process.cwd()}`,true,'green');
 
 	navigateToProjectDir();	
-	if(config.githubRepoUrl.indexOf('@') == -1){
+	
+	let repoURN = config.githubRepoUrl;
+	
+	if(repoURN.indexOf('@') == -1){
 		//combine in the fomat of https://username@github.com/author/Changeset/repo.git
 		let position = 8;
-		config.githubRepoUrl = [repoURL.slice(0, position), userName+'@', repoURL.slice(position)].join('');
+		config.githubRepoUrl = [repoURL.slice(0, position), userName+':'+pat+'@', repoURL.slice(position)].join('');
 	}
-	console.log('Repo location set to: ' + config.githubRepoUrl);
+	console.log('Repo location set to: ' + repoURN);
 
 	
 	//await runCommand(`git init`,[],true);
 	
-	await runCommand(`git clone ${config.repoURL} .`,[],true);
+	await runCommand(`git clone ${repoURN} .`,[],true);
 	
 	//change directory back up to root so the sfdx commands will write into the project folder.
 	process.chdir('..');
