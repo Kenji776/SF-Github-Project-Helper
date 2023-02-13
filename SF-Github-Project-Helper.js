@@ -81,7 +81,8 @@ async function displayMenu(){
 		case '1':
 			let repoURL = await prompt('Git Repo URL: ');
 			let userName = await prompt('Git Username: ');	
-			await connectToRepo(userName,repoURL);
+			let pat = await prompt('Git Personal Access Token: ');	
+			await connectToRepo(userName,pat,repoURL);
 			break;
 			
 		case '2':
