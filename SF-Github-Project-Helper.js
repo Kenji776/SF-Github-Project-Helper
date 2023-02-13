@@ -162,6 +162,8 @@ async function connectToRepo(userName, pat, repoURL){
 	
 	let repoURN = config.githubRepoUrl;
 	
+	//we only need to modify the url if the username isn't specified (with an @ symbol)
+	//todo, add an additional check to check for : to dynamically insert personal access token. for the moment it just assumes no username, no password which makes sense.
 	if(repoURN.indexOf('@') == -1){
 		//combine in the fomat of https://username@github.com/author/Changeset/repo.git
 		let position = 8;
@@ -240,6 +242,9 @@ async function getPackageXML(){
 		//checkout the branch
 		await changeToGitBranch(branchName);		
 
+		//because it would be pretty difficult to figure out what elements in a package.xml file create what files (actually you might just be able to concat the type+'/'+membername+'.xml' and get the path that way. Wouldn't
+		//work with wildcard retreives though...)
+		//instead we just put a file system watcher on the directory. Any file that gets modified that ends with .xml is added to our list of files to add to our git branch.
 		var modifiedFiles = [];
 		const watcher = fs.watch('./', {recursive: true}, (eventType, filename) => {
 			if(filename.endsWith('.xml')) modifiedFiles.push(filename);
@@ -259,7 +264,7 @@ async function getPackageXML(){
 			await runCommand(`git add ${fileName}`);
 		}
 		//TODO: Attempt to read description from package.xml here if it exists.
-		let commitMessage  = await prompt('Please commit description (what is this branch for?): ');
+		let commitMessage  = await prompt('Please enter a commit description (what is this branch for?): ');
 		
 		await gitCommit(commitMessage);
 		
@@ -268,6 +273,8 @@ async function getPackageXML(){
 		if(config.autoCreatePullRequest){
 			let title = await prompt('Please title for pull request: ');
 			let description = await prompt('Please description for pull request: ');
+			
+			//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
 			makeGithubPR(branchName, title, description)
 		}
 	}
@@ -514,10 +521,12 @@ async function authorizeGithubCLI(token){
 	});
 	
 	let command = `gh auth login --with-token <temp_token`;	
-	await runCommand(command);
-	return fs.unlinkSync('temp_token');
+	let commandResponse = await runCommand(command);
+	fs.unlinkSync('temp_token');
+	return commandResponse;
 }
 
+//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
 async function makeGithubPR(branchName, title, description){
 	let command  = `git pr create -H ${branchName} --title "${title}" --body "${description}`;
 	log(`Submitting Pull Request for branch ${branchName} with command: ${command}`);
@@ -574,7 +583,10 @@ function log(logItem, printToScreen, color) {
     if (printToScreen) console.log(colorCode + "" + logItem + "\x1b[0m");
 
     fs.appendFile("log.txt", logItem + "\r\n", function (err) {
-        if (err) throw err;
+        if (err) {	
+			console.log('Unable to write to log file');
+			console.log(err);
+		}
     });
 }
 
