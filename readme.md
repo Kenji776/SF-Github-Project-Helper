@@ -4,7 +4,9 @@ This is a Node.js application that makes setting up your Salesforce linked Githu
 
 ## Setting Up Your Project
 
-Simply download this projects contents and put them in a folder which will contain your Salesforce/Github project.
+Simply download this projects contents and put them in a folder which will contain your Salesforce/Github project. You optionally may clone this repo, with
+
+`git clone https://github.com/Kenji776/SF-Github-Project-Helper.git`
  
 Modify the properties of the config.json to reflect to match your Salesforce org and Github instance. You will need to create a personal access token [https://github.com/settings/tokens/new](https://github.com/settings/tokens/new). Once your config file is properly constructed launch the app either using the supplied .bat file (windows only) or run
 
