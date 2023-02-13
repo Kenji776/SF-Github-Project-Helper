@@ -4,7 +4,7 @@ This is a Node.js application that makes setting up your Salesforce linked Githu
 
 ## Setting Up Your Project
 
-Simply download this projects contents and put them in a folder which will contain your Salesforce/Github project. Alternatly, you may install it into a folder using npm using 
+Simply download this projects contents and put them in a folder which will contain your Salesforce/Github project. Alternatly, you may install it into a folder with npm using 
 
 `npm install https://github.com/Kenji776/SF-Github-Project-Helper.git`
  
