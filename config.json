@@ -1,7 +1,6 @@
 {
   "skipExistingChangeSets": true,
   "rootFolder": "packages",
-  "username": "",
   "changesetJSONFile": "changeSetNames.json",
   "downloadedPackagesFolder": "downloaded_packages",
   "salesforceUsername": "",
@@ -9,5 +8,6 @@
   "gitUsername": "",
   "projectName": "",
   "salesforceLoginURL": "https://test.salesforce.com",
-  "githubPersonalAccessToken": ""
+  "githubPersonalAccessToken": "",
+  "autoCreatePullRequest": true
 }

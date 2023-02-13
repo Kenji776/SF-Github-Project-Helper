@@ -129,6 +129,8 @@ async function configWizard(){
 	//create the project directory
 	if(!fs.existsSync(config.projectName)) fs.mkdirSync(config.projectName);
 	
+	//authoraize github with token
+	await authorizeGithubCLI(config.githubPersonalAccessToken);
 	
 	//init git with the repo
 	await connectToRepo(config.gitUsername, config.githubPersonalAccessToken, config.githubRepoUrl);
@@ -261,6 +263,12 @@ async function getPackageXML(){
 		await gitCommit(commitMessage);
 		
 		await pushBranchToRemote(branchName);
+		
+		if(config.autoCreatePullRequest){
+			let title = await prompt('Please title for pull request: ');
+			let description = await prompt('Please description for pull request: ');
+			makeGithubPR(branchName, title, description)
+		}
 	}
 }
 
@@ -501,13 +509,17 @@ async function authorizeGithubCLI(token){
 		log("The token file was saved!");
 	});
 	
-	let command = `gh auth login --with-token <temp_token`;
-	
+	let command = `gh auth login --with-token <temp_token`;	
 	await runCommand(command);
-	
 	return fs.unlinkSync('temp_token');
 }
 
+async function makeGithubPR(branchName, title, description){
+	let command  = `git pr create -H ${branchName} --title "${title}" --body "${description}`;
+	log(`Submitting Pull Request for branch ${branchName} with command: ${command}`);
+	return await runCommand(command);
+	
+}
 function clearScreen(){
 	console.log('\033[2J');
 	process.stdout.write('\033c');
