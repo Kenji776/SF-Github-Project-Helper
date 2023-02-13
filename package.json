@@ -1,0 +1,34 @@
+{
+  "name": "sf-github-project-helper",
+  "version": "1.0.0",
+  "description": "Application for helping setup your Salesforce connected Github project and then get changes from Salesforce into your repo.",
+  "main": "SF-Github-Project-Helper.js",
+  "dependencies": {
+    "sax": "^1.2.4",
+    "xml2js": "^0.4.23",
+    "xmlbuilder": "^11.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://Kenji776@github.com/Kenji776/SF-Github-Project-Helper.git"
+  },
+  "keywords": [
+    "github",
+    "salesforce",
+    "devops",
+    "deployment",
+    "change",
+    "sets",
+    "package.xml"
+  ],
+  "author": "Daniel Llewellyn",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Kenji776/SF-Github-Project-Helper/issues"
+  },
+  "homepage": "https://github.com/Kenji776/SF-Github-Project-Helper#readme"
+}
