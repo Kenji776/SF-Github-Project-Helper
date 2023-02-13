@@ -68,7 +68,8 @@ async function displayMenu(){
 	console.log('6) Push Changesets to GIT by entering names');
 	console.log('7) Push Package.xml file contents to GIT');
 	console.log('8) View Config File Information');
-	console.log('9) Exit');
+	console.log('9) Authoraize Github CLI');
+	console.log('10) Exit');
 	
 	let menuChoice = await prompt('\nEnter Selection: ');
 	
@@ -112,9 +113,11 @@ async function displayMenu(){
 			
 		case '8':
 			console.log(config);
-			break;
-			
+			break;		
 		case '9':
+			await authorizeGithubCLI(config.githubPersonalAccessToken);
+			break;
+		case '10':
 			finish();
 			break;
 	}
@@ -488,6 +491,23 @@ async function checkIfBranchExists(branchName){
 	else return false;
 }
 
+async function authorizeGithubCLI(token){
+	log(`Authorizing Github connection with personal access token: ${token}`,true);
+	//we have to read the token from a file, so we have to create that now
+	fs.writeFileSync('temp_token', token, function(err){
+		if(err) {
+			return log(err);
+		}
+		log("The token file was saved!");
+	});
+	
+	let command = `gh auth login --with-token <temp_token`;
+	
+	await runCommand(command);
+	
+	return fs.unlinkSync('temp_token');
+}
+
 function clearScreen(){
 	console.log('\033[2J');
 	process.stdout.write('\033c');
@@ -502,11 +522,11 @@ function runCommand(command, arguments, nolog) {
     let p = spawn(command, arguments, { shell: true, windowsVerbatimArguments: true });
     return new Promise((resolveFunc) => {
         p.stdout.on("data", (x) => {
-            process.stdout.write(x.toString());
+            //process.stdout.write(x.toString());
             if(!nolog) log(x.toString());
         });
         p.stderr.on("data", (x) => {
-            process.stderr.write(x.toString());
+			//process.stderr.write(x.toString());
             if(!nolog) log(x.toString());
         });
         p.on("exit", (code) => {
