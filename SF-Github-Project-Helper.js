@@ -286,11 +286,14 @@ function navigateToProjectDir(){
 * @Return boolean value. True if the string is valid, false if it is not.
 */
 function validateGitBranchName(branchName){
+	/*
 	let branchRegex = '^(main|development|master|(features|tests|(bug|hot)fix)(\/[a-zA-Z0-9]+([-_][a-zA-Z0-9]+)*){1,2}|release\/[0-9]+(\.[0-9]+)*(-(alpha|beta|rc)[0-9]*)?)$';
 	const regex = new RegExp(branchRegex);
 	let result =  regex.test(branchName);
 	if(!result) log('Invalid GIT branch name',true,'red');
 	return result;
+	*/
+	return true;
 	
 }
 
