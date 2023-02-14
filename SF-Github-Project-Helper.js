@@ -180,9 +180,7 @@ async function configWizard(configObject){
 	
 	//authoraize github with token
 	if(config.autoCreatePullRequest){
-		let githubAuthorizeResult = await authorizeGithubCLI(configObject.githubPersonalAccessToken);
-		
-		console.log(githubAuthorizeResult);
+		let githubAuthorizeResult = await authorizeGithubCLI(configObject.githubPersonalAccessToken);	
 		
 		if(githubAuthorizeResult.exit_code != 0) {
 			log(`Error authorizing Github. ${githubAuthorizeResult.output}`,true,'red');
@@ -230,12 +228,12 @@ async function connectToRepo(userName, pat, repoURL){
 	
 	if (fs.existsSync(`${config.projectName}\\.git`)){
 		log('GIT Folder already exists. Please delete .git folder before attempting to clone the repository',true,'yellow');
-		return;
+		return {'exit_code':0,'output':'Git folder already exists'};
 	}
 
 	log(`Cloning git repo into ${process.cwd()}`,true,'green');
 
-	navigateUpToProjectDir();	
+	navigateToProjectDir();	
 	
 	let repoURN = config.githubRepoUrl;
 	
@@ -320,7 +318,7 @@ async function getChangeSetsFromInput(){
 *@Description Initiates an interactive prompt to allow a user to download the contents of a specified package.xml file and push them into a new branch, then commit that branch and push it to the remote repo.
 */
 async function getPackageXML(){
-	navigateUpToProjectDir();
+	navigateToProjectDir();
 	console.log('Current Directory: ' + process.cwd());
 	const packageFileLocation = await prompt('Please enter the location/name of your package.xml file: ');
 	if (!fs.existsSync(packageFileLocation)) log('File not found. Please check the location and try again',true,'red');
@@ -406,20 +404,31 @@ async function submitGithubPullRequest(branchName){
 /**
 * @Description navigates the current working directory to that of the project root folder.
 */
-function navigateUpToProjectDir(){
+function navigateToProjectDir(){
 	//get the current folder path.
 	let currentPath = process.cwd();
 	
 	//if the name of our project exists in the path (which it always should), but it's not the last part of the path (meaning it's not the current directory). Then move up a folder until it is.
 	let maxIterations = 20;
 	let currentIterations = 0;
-	while(!currentPath.endsWith(config.projectName)) {	
-		process.chdir(config.projectName);
-		currentPath = process.cwd();
-		
-		//sanity check just to ensure we don't somehow end up in an infinite loop. 
-		currentIterations++;
-		if(currentIterations > maxIterations) break;
+	
+	//if we are withing a sub folder of the project directory, then navigate up until we get into it.
+	if(currentPath.indexOf(config.projectName) > -1){
+		while(!currentPath.endsWith(config.projectName)) {	
+			console.log('Current path: ' + currentPath);
+			
+			process.chdir('../');
+			currentPath = process.cwd();
+			
+			//sanity check just to ensure we don't somehow end up in an infinite loop. 
+			currentIterations++;
+			if(currentIterations > maxIterations) break;
+		}
+	}
+	//if the name of this project is not in the path, then we must be above it in the directory structure. The best we can do is try to navigate down into it if it exists. If it isn't there then we have no idea 
+	//where in the directory structure the project folder is so there is nothing we can do.
+	else{
+		if(fs.existsSync(config.projectName)) process.chdir(config.projectName);
 	}
 }
 
