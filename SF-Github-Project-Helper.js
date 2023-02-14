@@ -574,11 +574,22 @@ function maskString(maskString, maskPercent = 80){
 	return maskedString;
 }
 
+/**
+* @Description invokes the 'git remote set-url' command to set the repo UIL to the provided repoUrl
+* @Param repoURL string containing the location of the remote repo in https:// url format.
+* @Return the exit code of the called command.
+*/
 async function setGitRemoteURL(repoUrl){
 	let command = `git remote set-url ${repoUrl}`;
 	log(`Setting GIT Repo URL: ${command}`,true);
 	return await runCommand(command); 
 }
+
+/**
+* @Description invokes the 'git branch' command to create a new git branch if one by that name does not exist in the local repo.
+* @Param branchName a string that is the name of the branch to create
+* @Return the exit code of the called command.
+*/
 async function createGitBranch(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
 	
@@ -587,8 +598,14 @@ async function createGitBranch(branchName){
 		log(`Creating branch ${branchName}: ${command}`,true);
 		return await runCommand(command); 
 	}
-	return true;
+	return 0;
 }
+
+/**
+* @Description invokes the 'git checkout' command to check out a branch of the given name
+* @Param branchName the name of the branch to check out and set to the working branch
+* @Return the exit code of the called command.
+*/
 async function changeToGitBranch(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
 	let command = `git checkout -b ${branchName}`;
@@ -596,6 +613,11 @@ async function changeToGitBranch(branchName){
 	return await runCommand(command); 
 }
 
+/**
+* @Description invokes the 'git push -u origin HEAD' command to push the changes into the repo
+* @Param branchName a string that is the name of the branch to push
+* @Return the exit code of the called command.
+*/
 async function pushBranchToRemote(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
 	//let command = `git push -u origin ${branchName}`
@@ -604,24 +626,44 @@ async function pushBranchToRemote(branchName){
 	return await runCommand(command);
 }
 
+/**
+* @Description invokes the 'git add' command to add the contents of a folder to a branch. Uses the --force flag to include things that may normally be ignored
+* @Param folderName a string that is the name of the folder on the local machine to add into the branch.
+* @Return the exit code of the called command.
+*/
 async function addFolderToBranch(folderName){
 	let command = `git add "${folderName}" --force`;
 	log(`Adding folder to branch ${folderName}: ${command}`,true);
 	return await runCommand(command);
 }
 
+/**
+* @Description invokes the 'git commit' command to stage a commit to be pushed into the remote repo
+* @Param commitMessage a string that is the message to include as the commit description
+* @Return the exit code of the called command.
+*/
 async function gitCommit(commitMessage){
 	let command = `git commit -m "${commitMessage}" -a`;
 	log(`Commiting branch: ${command}`,true);
 	return await runCommand(command);
 }
 
+/**
+* @Description a function to check if a local branch exists to prevent attempting to create a duplicate. Does not currently work, but attempting to create a duplicate branch is not a fatal error
+* @Param branchName a string that is the name of the branch to check if already exists.
+* @Return a boolean value. True if the branch exists. False if it does not.
+*/
 async function checkIfBranchExists(branchName){
 	let output = await runCommand(`git branch -l ${branchName})`);
 	if(output.length > 0 || output == 0) return true;
 	else return false;
 }
 
+/**
+* @Description invokes the 'gh auth login' command to authorize the Github CLI to interact with the repo so pull requests may be created automatically.
+* @Param token a string that is the personal access token to authenticate to the repo.
+* @Return the exit code of the called command.
+*/
 async function authorizeGithubCLI(token){
 	log(`Authorizing Github connection with personal access token: ${maskString(token)}`,true);
 	//we have to read the token from a file, so we have to create that now
