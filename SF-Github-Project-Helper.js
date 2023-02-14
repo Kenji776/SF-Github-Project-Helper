@@ -187,7 +187,7 @@ async function connectToRepo(userName, pat, repoURL){
 	if(repoURN.indexOf('@') == -1){
 		//combine in the fomat of https://username@github.com/author/Changeset/repo.git
 		let position = 8;
-		config.githubRepoUrl = [repoURL.slice(0, position), userName+':'+pat+'@', repoURL.slice(position)].join('');
+		repoURN = [repoURL.slice(0, position), userName+':'+pat+'@', repoURL.slice(position)].join('');
 	}
 	
 	await runCommand(`git clone ${repoURN} .`,[],true);
