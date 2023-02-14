@@ -37,5 +37,7 @@ The project helper can also deploy package.xml files. Create your package.xml fi
 - [Salesforce SFDX CLI](https://developer.salesforce.com/tools/sfdxcli)
 - [Git](https://git-scm.com/downloads)
 - [Node.JS](https://nodejs.org/en/)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference.htm)
+- [Github CLI](https://cli.github.com/)
+
+
 
