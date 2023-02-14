@@ -179,16 +179,40 @@ async function configWizard(configObject){
 	if(!fs.existsSync(configObject.projectName)) fs.mkdirSync(configObject.projectName);
 	
 	//authoraize github with token
-	await authorizeGithubCLI(configObject.githubPersonalAccessToken);
+	if(config.autoCreatePullRequest){
+		let githubAuthorizeResult = await authorizeGithubCLI(configObject.githubPersonalAccessToken);
+		
+		console.log(githubAuthorizeResult);
+		
+		if(githubAuthorizeResult.exit_code != 0) {
+			log(`Error authorizing Github. ${githubAuthorizeResult.output}`,true,'red');
+			return false;
+		}
+	}
 	
 	//init git with the repo
-	await connectToRepo(configObject.gitUsername, configObject.githubPersonalAccessToken, configObject.githubRepoUrl);
+	let connectToRepoResult = await connectToRepo(configObject.gitUsername, configObject.githubPersonalAccessToken, configObject.githubRepoUrl);
+	
+	if(connectToRepoResult.exit_code != 0) {
+		log(`Error cloning remote repository. ${connectToRepoResult.output}`,true,'red');
+		return false;
+	}
 	
 	//init the SFDX project
-	await setupSFDXProject(configObject.projectName);
+	let setupSFDXProjectResult = await setupSFDXProject(configObject.projectName);
+	
+	if(setupSFDXProjectResult.exit_code != 0) {
+		log(`Error creating SFDX project. ${setupSFDXProjectResult.output}`,true,'red');
+		return false;
+	}
 	
 	//authorize the org.
-	await authorizeSFOrg(configObject.salesforceLoginURL,configObject.projectName);
+	let authorizeSFOrgResult = await authorizeSFOrg(configObject.salesforceLoginURL,configObject.projectName);
+	
+	if(authorizeSFOrgResult.exit_code != 0) {
+		log(`Error authorizing Salesforce Org. ${authorizeSFOrgResult.output}`,true,'red');
+		return false;
+	}
 	
 	log('Salesforce connected and git repo configured!',true,'green');
 	
@@ -200,6 +224,7 @@ async function configWizard(configObject){
 * @Param userName the user name used to access the repository
 * @Param pat A github Personal access token that is used to authenticate the user
 * @Param repoURL The gitHub repo location. EX: https://github.com/Kenji776/SF-Github-Project-Helper.git
+* @Return Object with result of clone operation, including 'exit_code' and 'output'
 */
 async function connectToRepo(userName, pat, repoURL){
 	
@@ -235,12 +260,15 @@ async function connectToRepo(userName, pat, repoURL){
 	
 	log(maskString(command),true,'green');
 	log('Clone process result: ' + JSON.stringify(cloneResult,null,2));
+	
+	return cloneResult;
 }
 
 
 /**
 * @Description initilizes the SFDX project in the project folder
 * @Param projectName a string which is the name of the project.
+* @Return Object with result of sfdx force:project:create operation, including 'exit_code' and 'output'
 */
 async function setupSFDXProject(projectName){	
 	log(`Setting up Salesforce DX Project ${projectName}`,true,'green');
@@ -248,17 +276,18 @@ async function setupSFDXProject(projectName){
 		log('SFDX Project folder already exists. Skipping project creation',true,'yellow');
 		return;
 	}
-	await runCommand(`sfdx force:project:create -n ${projectName} --manifest`);
+	return await runCommand(`sfdx force:project:create -n ${projectName} --manifest`);
 }
 
 /**
 * @Description uses SFDX to connect to an org and sets it as default.
 * @Param loginURl The Salesforce login endpoint. Ex 'https://test.salesforce.com', 'https://login.salesforce.com', 'https://my-custom-domain.sandbox.my.salesforce.com/' 
 * @Param orgAlias Currently unused. Sets the alias of the org. Removed because it was causing errors for some reason.
+* @Return Object with result of sfdx auth:web:login operation, including 'exit_code' and 'output'
 */
 async function authorizeSFOrg(loginUrl, orgAlias){
 	log(`Authorizing Org ${orgAlias}. Wait for browser window to open and login...`,true,'green');
-	await runCommand(`sfdx auth:web:login --instanceurl ${loginUrl} --setdefaultusername`);
+	return await runCommand(`sfdx auth:web:login --instanceurl ${loginUrl} --setdefaultusername`);
 }
 
 /**
@@ -610,7 +639,7 @@ function maskString(maskString, maskPercent = 80){
 /**
 * @Description invokes the 'git remote set-url' command to set the repo UIL to the provided repoUrl
 * @Param repoURL string containing the location of the remote repo in https:// url format.
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function setGitRemoteURL(repoUrl){
 	let command = `git remote set-url ${repoUrl}`;
@@ -621,7 +650,7 @@ async function setGitRemoteURL(repoUrl){
 /**
 * @Description invokes the 'git branch' command to create a new git branch if one by that name does not exist in the local repo.
 * @Param branchName a string that is the name of the branch to create
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function createGitBranch(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
@@ -637,7 +666,7 @@ async function createGitBranch(branchName){
 /**
 * @Description invokes the 'git checkout' command to check out a branch of the given name
 * @Param branchName the name of the branch to check out and set to the working branch
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function changeToGitBranch(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
@@ -649,7 +678,7 @@ async function changeToGitBranch(branchName){
 /**
 * @Description invokes the 'git push -u origin HEAD' command to push the changes into the repo
 * @Param branchName a string that is the name of the branch to push
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function pushBranchToRemote(branchName){
 	branchName = convertPackgeNameToGitName(branchName);
@@ -662,7 +691,7 @@ async function pushBranchToRemote(branchName){
 /**
 * @Description invokes the 'git add' command to add the contents of a folder to a branch. Uses the --force flag to include things that may normally be ignored
 * @Param folderName a string that is the name of the folder on the local machine to add into the branch.
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function addFolderToBranch(folderName){
 	let command = `git add "${folderName}" --force`;
@@ -673,7 +702,7 @@ async function addFolderToBranch(folderName){
 /**
 * @Description invokes the 'git commit' command to stage a commit to be pushed into the remote repo
 * @Param commitMessage a string that is the message to include as the commit description
-* @Return the exit code of the called command.
+* @Return Object with result of operation, including 'exit_code' and 'output
 */
 async function gitCommit(commitMessage){
 	let command = `git commit -m "${commitMessage}" -a`;
@@ -695,7 +724,7 @@ async function checkIfBranchExists(branchName){
 /**
 * @Description invokes the 'gh auth login' command to authorize the Github CLI to interact with the repo so pull requests may be created automatically.
 * @Param token a string that is the personal access token to authenticate to the repo.
-* @Return the exit code of the called command.
+* @Return Object with result of authorize operation, including 'exit_code' and 'output
 */
 async function authorizeGithubCLI(token){
 	log(`Authorizing Github connection with personal access token: ${maskString(token)}`,true);
