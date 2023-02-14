@@ -176,6 +176,7 @@ async function displayMenu(){
 async function configWizard(configObject){
 	log('Config Wizard Invoked');
 	//create the project directory
+	if(fs.existsSync(configObject.projectName)) fs.rmSync(configObject.projectName, { recursive: true, force: true });
 	if(!fs.existsSync(configObject.projectName)) fs.mkdirSync(configObject.projectName);
 	
 	//authoraize github with token
