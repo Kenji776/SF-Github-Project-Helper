@@ -9,5 +9,6 @@
   "projectName": "",
   "salesforceLoginURL": "https://test.salesforce.com",
   "githubPersonalAccessToken": "",
-  "autoCreatePullRequest": true
+  "autoCreatePullRequest": true,
+  "autofillPullRequestDetails":true
 }
