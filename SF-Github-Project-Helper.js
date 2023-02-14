@@ -336,7 +336,7 @@ async function getPackageXML(){
 			let description = await prompt('Please description for pull request: ');
 			
 			//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
-			makeGithubPR(branchName, title, description)
+			await makeGithubPR(branchName, title, description)
 		}
 	}
 }
@@ -556,7 +556,7 @@ function readJSONFromFile(fileName) {
 * @Return a string that is the converted/fixed name/
 */
 function convertPackgeNameToGitName(packageName){
-	let branchName = branchName.replace(/\s/g , "-");
+	let branchName = packageName.replace(/\s/g , "-");
 	return branchName;
 }
 
@@ -708,7 +708,7 @@ function clearScreen(){
  * @Return javascript promise object that contains the result of the command execution
  */
 function runCommand(command, arguments = [], nolog) {
-	if(!nolog) log(command + ' arguments: ' + arguments);
+	if(!nolog) log(command +  ' ' + arguments.join(' '));
     let p = spawn(command, arguments, { shell: true, windowsVerbatimArguments: true });
     return new Promise((resolveFunc) => {
         p.stdout.on("data", (x) => {
