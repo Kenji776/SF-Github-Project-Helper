@@ -32,7 +32,6 @@ function prompt(query) {
 let config = {
     skipExistingChangeSets: true,
     rootFolder: "packages",
-    username: "",
 	changesetJSONFile: "changeSetNames.json",
 };
 
@@ -50,10 +49,31 @@ async function init() {
     let loadedConfig = loadConfig(configFileName);
     config = { ...config, ...loadedConfig };	
 	
+	let configsValidResponse = checkConfigsValid();
 	
+	if(!configsValidResponse.valid) throw new Error(configsValidResponse.message);
 	
-		
 	displayMenu();
+}
+
+function checkConfigsValid(){
+	let configValid = {
+		valid: true,
+		message: "Configs Valid!"
+	}
+	if(config.gitUsername.indexOf('@') > -1){
+		configValid.valid = false;
+		configValid.message = "Github username has an @ symbol. It must not. Remove the @ portion of the username and try again";
+	}
+	
+	for(let property in config){
+		if(config[property] == "") {
+			configValid.valid = false;
+			configValid.message = `Property ${property} in config file must not be empty. Please populate it and try again`;	
+		}
+	}
+		
+	return configValid;
 }
 
 async function displayMenu(){
@@ -68,7 +88,7 @@ async function displayMenu(){
 	console.log('6) Push Changesets to GIT by entering names');
 	console.log('7) Push Package.xml file contents to GIT');
 	console.log('8) View Config File Information');
-	console.log('9) Authoraize Github CLI');
+	console.log('9) Authorize Github CLI');
 	console.log('10) Exit');
 	
 	let menuChoice = await prompt('\nEnter Selection: ');
@@ -169,15 +189,14 @@ async function connectToRepo(userName, pat, repoURL){
 		let position = 8;
 		config.githubRepoUrl = [repoURL.slice(0, position), userName+':'+pat+'@', repoURL.slice(position)].join('');
 	}
-	console.log('Repo location set to: ' + repoURN);
-
-	
-	//await runCommand(`git init`,[],true);
 	
 	await runCommand(`git clone ${repoURN} .`,[],true);
 	
 	//change directory back up to root so the sfdx commands will write into the project folder.
 	process.chdir('..');
+	
+	console.log('Attempted repo clone from location: ' + repoURN);
+	
 	saveConfig();
 }
 
@@ -511,7 +530,7 @@ async function checkIfBranchExists(branchName){
 }
 
 async function authorizeGithubCLI(token){
-	log(`Authorizing Github connection with personal access token: ${token}`,true);
+	log(`Authorizing Github connection with personal access token: *************************************`,true);
 	//we have to read the token from a file, so we have to create that now
 	fs.writeFileSync('temp_token', token, function(err){
 		if(err) {
