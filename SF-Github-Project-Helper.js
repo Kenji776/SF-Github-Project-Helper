@@ -33,7 +33,8 @@ function prompt(query) {
 let config = {
     skipExistingChangeSets: true,
 	changesetJSONFile: "changeSetNames.json",
-	autoCreatePullRequest: "false"
+	autoCreatePullRequest: false,
+	autofillPullRequestDetails: true
 };
 
 /**
@@ -159,6 +160,9 @@ async function displayMenu(){
 		case '10':
 			finish();
 			break;
+		case '11':
+			submitGithubPullRequest('test-of-automatic-pr-open');
+			break;
 	}
 	
 	displayMenu();
@@ -230,7 +234,7 @@ async function connectToRepo(userName, pat, repoURL){
 	process.chdir('..');
 	
 	log(maskString(command),true,'green');
-	log('Clone process result: ' + cloneResult);
+	log('Clone process result: ' + JSON.stringify(cloneResult,null,2));
 }
 
 
@@ -332,12 +336,41 @@ async function getPackageXML(){
 		await pushBranchToRemote(branchName);
 		
 		if(config.autoCreatePullRequest){
-			let title = await prompt('Please title for pull request: ');
-			let description = await prompt('Please description for pull request: ');
-			
-			//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
-			await makeGithubPR(branchName, title, description)
+			await submitGithubPullRequest(branchName);
 		}
+	}
+}
+
+/**
+* @Description submits a github pull request for the given branch using the given title and description. If successful then attempts to open a browser tab to the PR so it can be merged.
+* @Param branchName the name of the branch to create a pull request for
+* @Param title the title of the pull request
+* @Param description a description of the pull request
+*/
+async function submitGithubPullRequest(branchName){
+	
+	let title = '';
+	let description = '';
+	
+	//if we are not auto filling the PR details, then ask for them from the user now.
+	if(!config.autofillPullRequestDetails){
+		title = await prompt('Please title for pull request: ');
+		description = await prompt('Please description for pull request: ');		
+	}
+	//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
+	let result = await makeGithubPR(branchName, title, description);
+	 
+	console.log('Result of PR call');
+	console.log(JSON.stringify(result,null,2));
+	
+	//look to see if we have a URL pointing to where the pull request is, so we can then open a browser window to it to complete the merge.
+	if(result.exit_code === 0){
+		log('Pull request completed! You still must merge this to get it into the master branch!',true,'green');
+		let resultOutput = result.output;
+		let url = resultOutput.substring(resultOutput.indexOf('https:'),resultOutput.size).trim();
+		log('Pull request URL: ' + url,true);
+		var start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
+		await runCommand(start + ' ' + url);		
 	}
 }
 
@@ -681,14 +714,22 @@ async function authorizeGithubCLI(token){
 }
 
 /**
-* @Description uses the Github CLI to create a pull request.
+* @Description uses the Github CLI to create a pull request. If title or description are not provided, then they are autofilled from the last commit
 * @Param branchName the name of a Git branch to make a pull request for
 * @Param title the title to give to this pull request.
 * @Param description the description for this pull request.
 * @TODO allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
 */
-async function makeGithubPR(branchName, title, description){
-	let command  = `gh pr create -H ${branchName} --title "${title}" --body "${description}`;
+async function makeGithubPR(branchName, title='', description=''){
+	let command  = `gh pr create -H ${branchName}`;
+	if(!title || !description || title == '' || description == ''){
+		log(`Creating pull request for branch ${branchName}. Autofilling title and description from commit`);
+		command +=' --fill';
+	}else{
+		log(`Creating pull request for branch ${branchName}. Title: ${title}. Description: ${description}`);
+		command += ` --title "${title}" --body "${description}`;
+
+	}
 	log(`Submitting Pull Request for branch ${branchName} with command: ${command}`);
 	return await runCommand(command);
 	
@@ -711,16 +752,21 @@ function runCommand(command, arguments = [], nolog) {
 	if(!nolog) log(command +  ' ' + arguments.join(' '));
     let p = spawn(command, arguments, { shell: true, windowsVerbatimArguments: true });
     return new Promise((resolveFunc) => {
+		var output ='';
         p.stdout.on("data", (x) => {
             //process.stdout.write(x.toString());
             if(!nolog) log(x.toString());
+			output += x;
         });
         p.stderr.on("data", (x) => {
 			//process.stderr.write(x.toString());
             if(!nolog) log(x.toString());
+			output += x;
         });
         p.on("exit", (code) => {
-            resolveFunc(code);
+			let returnObject = {'exit_code': code, 'output': output};
+			if(!nolog) log('Command complete. Result: ' + JSON.stringify(returnObject, null, 2),false);
+            resolveFunc(returnObject);
         });
     });
 }
