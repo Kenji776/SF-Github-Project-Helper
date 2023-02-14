@@ -231,9 +231,11 @@ async function connectToRepo(userName, pat, repoURL){
 		return {'exit_code':0,'output':'Git folder already exists'};
 	}
 
-	log(`Cloning git repo into ${process.cwd()}`,true,'green');
+	log(`Current folder ${process.cwd()}. Changing into project folder ${config.projectName}`,true,'green');
 
 	navigateToProjectDir();	
+	
+	console.log(`Cloning git repo into ${process.cwd()}`,true,'green');
 	
 	let repoURN = config.githubRepoUrl;
 	
@@ -251,10 +253,15 @@ async function connectToRepo(userName, pat, repoURL){
 	//we don't want to attempt to write to the log here since we are currently in a different working directory and then will generate a log file in that directory which will cause the 
 	//clone to fail since the directory is not empty. Instead we just record the command to be executed and write it to the log later.
 	//TODO: Fix the log function to somehow locate where the proper log is so it doesn't write to the wrong folder.
+	
+	//ensure to delete any rogue log files that might have ended up in this directory.
+	if (fs.existsSync('log.txt')) fs.unlinkSync('log.txt');
 	let cloneResult = await runCommand(command,[],true);
 	
 	//change directory back up to root so the sfdx commands will write into the project folder.
 	process.chdir('..');
+	
+	//log(`Navigated up a folder into ${process.cwd()}.`);
 	
 	log(maskString(command),true,'green');
 	log('Clone process result: ' + JSON.stringify(cloneResult,null,2));
@@ -414,10 +421,12 @@ function navigateToProjectDir(){
 	
 	//if we are withing a sub folder of the project directory, then navigate up until we get into it.
 	if(currentPath.indexOf(config.projectName) > -1){
+		log(`Detected current working directory is sub directory of project folder.`);
 		while(!currentPath.endsWith(config.projectName)) {	
+			log(`Navigating up a folder to try and find directory ${config.projectName}`);
 			console.log('Current path: ' + currentPath);
 			
-			process.chdir('../');
+			process.chdir('..');
 			currentPath = process.cwd();
 			
 			//sanity check just to ensure we don't somehow end up in an infinite loop. 
@@ -428,6 +437,7 @@ function navigateToProjectDir(){
 	//if the name of this project is not in the path, then we must be above it in the directory structure. The best we can do is try to navigate down into it if it exists. If it isn't there then we have no idea 
 	//where in the directory structure the project folder is so there is nothing we can do.
 	else{
+		log(`Changing into sub directory ${config.projectName}`);
 		if(fs.existsSync(config.projectName)) process.chdir(config.projectName);
 	}
 }
