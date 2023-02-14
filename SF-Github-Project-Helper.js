@@ -40,8 +40,8 @@ let config = {
 * @Description Entry point function. Loads configuration, checks it for validity and calls the menu to display to the user
 */
 async function init() {
-    console.log("                                    Salesforce/Github Project Helper 1.0\r\n");
-    console.log("                                     Author: Dan Llewellyn\r\n");
+    console.log("                                    Salesforce/Github Project Helper\r\n");
+    console.log("                                     Author: Kenji776\r\n");
 
     let d = new Date();
     d.toLocaleString();
