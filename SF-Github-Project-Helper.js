@@ -1,8 +1,8 @@
 /**
- * @Name ChangeLogBuilder
+ * @Name SF-Github-Project-Helper
  * @Date 2/1/2023
  * @Author Daniel Llewellyn
- * @Description This script will download a changeset from a specified Salesforce org, create a branch in GIT, push the contents of the changeset into the branch, then push it to Git.
+ * @Description This is a Node.js application that makes setting up your Salesforce linked Github project easier. It also allows you to easily deploy new metadata and automate the version control tasks such as making branches, adding content, pushing branches and making pull requests
  */
  
 const configFileName = "config.json";
@@ -29,15 +29,19 @@ function prompt(query) {
     }))
 }
 
+//default config options
 let config = {
     skipExistingChangeSets: true,
-    rootFolder: "packages",
 	changesetJSONFile: "changeSetNames.json",
+	autoCreatePullRequest: "false"
 };
 
+/**
+* @Description Entry point function. Loads configuration, checks it for validity and calls the menu to display to the user
+*/
 async function init() {
-    log("                                    Salesforce/Github Project Helper 1.0\r\n", true, "green");
-    log("                                     Author: Dan Llewellyn\r\n", true);
+    console.log("                                    Salesforce/Github Project Helper 1.0\r\n");
+    console.log("                                     Author: Dan Llewellyn\r\n");
 
     let d = new Date();
     d.toLocaleString();
@@ -49,33 +53,47 @@ async function init() {
     let loadedConfig = loadConfig(configFileName);
     config = { ...config, ...loadedConfig };	
 	
-	let configsValidResponse = checkConfigsValid();
+	let configsValidResponse = checkConfigsValid(config);
 	
 	if(!configsValidResponse.valid) throw new Error(configsValidResponse.message);
 	
 	displayMenu();
 }
 
-function checkConfigsValid(){
+/**
+* @Description Checks the validity of a configuration object (loaded from a config.json) using some pre-built rules. Helps ensure the user hasn't accidentally entered bad values or forgot to populate something.
+* @Param configObject a javascript object created from a config.json file (a key/value pair object)
+* @Return object with a 'valid' and 'message' property indicating if the configuration is valid (valid=true/false) and a message with further details about the result.
+*/
+function checkConfigsValid(configObject){
+	
+	//return object
 	let configValid = {
 		valid: true,
 		message: "Configs Valid!"
 	}
-	if(config.gitUsername.indexOf('@') > -1){
+	
+	//check to ensure the github username doesn't have an @ in it. I kept accidentally doing that and it breaks the 'git clone' call.
+	if(configObject.gitUsername.indexOf('@') > -1){
 		configValid.valid = false;
 		configValid.message = "Github username has an @ symbol. It must not. Remove the @ portion of the username and try again";
 	}
 	
-	for(let property in config){
-		if(config[property] == "") {
+	//check to ensure all properties of the config are populated.
+	//TODO: Make this list of required properties a variable of some kind. All properties may not be required in the future and this check could be over aggressive.
+	for(let property in configObject){
+		if(configObject[property] == "") {
 			configValid.valid = false;
-			configValid.message = `Property ${property} in config file must not be empty. Please populate it and try again`;	
+			configValid.message = `Property ${property} in config must not be empty. Please populate it and try again`;	
 		}
 	}
 		
 	return configValid;
 }
 
+/**
+* @Description displays an interactive menu to the user to allow them to select which operation they would like to perform. Upon completion it calls itself again unless the user exits the program.
+*/
 async function displayMenu(){
 	//clearScreen();
 	console.log('\n\nPlease select option');
@@ -95,7 +113,7 @@ async function displayMenu(){
 	
 	switch (menuChoice) {
 		case '0':
-			await configWizard();
+			await configWizard(config);
 			
 			break;
 		case '1':
@@ -146,28 +164,38 @@ async function displayMenu(){
 	displayMenu();
 }
 
-async function configWizard(){
+/**
+* @Description Creats a project folder, clones the Github repo, initilizes the SFDX project, authorizes the org, and authorizes Github CLI by using properties from the config
+* @Param configObject a javascript object created from a config.json file (a key/value pair object)
+* @Return true if no error occured
+*/
+async function configWizard(configObject){
+	log('Config Wizard Invoked');
 	//create the project directory
-	if(!fs.existsSync(config.projectName)) fs.mkdirSync(config.projectName);
+	if(!fs.existsSync(configObject.projectName)) fs.mkdirSync(configObject.projectName);
 	
 	//authoraize github with token
-	await authorizeGithubCLI(config.githubPersonalAccessToken);
+	await authorizeGithubCLI(configObject.githubPersonalAccessToken);
 	
 	//init git with the repo
-	await connectToRepo(config.gitUsername, config.githubPersonalAccessToken, config.githubRepoUrl);
+	await connectToRepo(configObject.gitUsername, configObject.githubPersonalAccessToken, configObject.githubRepoUrl);
 	
 	//init the SFDX project
-	await setupSFDXProject(config.projectName);
+	await setupSFDXProject(configObject.projectName);
 	
 	//authorize the org.
-	await authorizeSFOrg(config.salesforceLoginURL,config.projectName);
+	await authorizeSFOrg(configObject.salesforceLoginURL,configObject.projectName);
 	
 	log('Salesforce connected and git repo configured!',true,'green');
 	
+	return true;
 }
 
 /**
 * @Description Initilizes GIT in the current folder and clones the given repo with the given username
+* @Param userName the user name used to access the repository
+* @Param pat A github Personal access token that is used to authenticate the user
+* @Param repoURL The gitHub repo location. EX: https://github.com/Kenji776/SF-Github-Project-Helper.git
 */
 async function connectToRepo(userName, pat, repoURL){
 	
@@ -178,7 +206,7 @@ async function connectToRepo(userName, pat, repoURL){
 
 	log(`Cloning git repo into ${process.cwd()}`,true,'green');
 
-	navigateToProjectDir();	
+	navigateUpToProjectDir();	
 	
 	let repoURN = config.githubRepoUrl;
 	
@@ -190,14 +218,19 @@ async function connectToRepo(userName, pat, repoURL){
 		repoURN = [repoURL.slice(0, position), userName+':'+pat+'@', repoURL.slice(position)].join('');
 	}
 	
-	await runCommand(`git clone ${repoURN} .`,[],true);
+	let command = `git clone ${repoURN} .`;
+	
+	
+	//we don't want to attempt to write to the log here since we are currently in a different working directory and then will generate a log file in that directory which will cause the 
+	//clone to fail since the directory is not empty. Instead we just record the command to be executed and write it to the log later.
+	//TODO: Fix the log function to somehow locate where the proper log is so it doesn't write to the wrong folder.
+	let cloneResult = await runCommand(command,[],true);
 	
 	//change directory back up to root so the sfdx commands will write into the project folder.
 	process.chdir('..');
 	
-	console.log('Attempted repo clone from location: ' + repoURN);
-	
-	saveConfig();
+	log(maskString(command),true,'green');
+	log('Clone process result: ' + cloneResult);
 }
 
 
@@ -216,12 +249,18 @@ async function setupSFDXProject(projectName){
 
 /**
 * @Description uses SFDX to connect to an org and sets it as default.
+* @Param loginURl The Salesforce login endpoint. Ex 'https://test.salesforce.com', 'https://login.salesforce.com', 'https://my-custom-domain.sandbox.my.salesforce.com/' 
+* @Param orgAlias Currently unused. Sets the alias of the org. Removed because it was causing errors for some reason.
 */
 async function authorizeSFOrg(loginUrl, orgAlias){
 	log(`Authorizing Org ${orgAlias}. Wait for browser window to open and login...`,true,'green');
 	await runCommand(`sfdx auth:web:login --instanceurl ${loginUrl} --setdefaultusername`);
 }
 
+/**
+* @Description reads a list of Salesforce change set names from file specified in the config. Parses the JSON and after prompting the user that they would like to continue, fetches the contents of the change sets and 
+* pushes them into their own Git branch (one per change set). Then pushes them into the repo.
+*/
 async function getChangesetsFromFile(){
 	let changeSetsToFetchArray = readJSONFromFile(config.changesetJSONFile);
 		
@@ -231,6 +270,9 @@ async function getChangesetsFromFile(){
 	else displayMenu();
 }
 
+/**
+* @Description gets the name of a change set from user input. fetches the contents of the change set and pushes it into a Git branch. Then pushes them into the repo.
+*/
 async function getChangeSetsFromInput(){
 	const enteredCSNames =  await prompt('Please enter change set name to fetch. You may enter multiple change sets separated by a comma: ');
 	let changeSetsToFetchArray = enteredCSNames.split(',');
@@ -245,7 +287,7 @@ async function getChangeSetsFromInput(){
 *@Description Initiates an interactive prompt to allow a user to download the contents of a specified package.xml file and push them into a new branch, then commit that branch and push it to the remote repo.
 */
 async function getPackageXML(){
-	navigateToProjectDir();
+	navigateUpToProjectDir();
 	console.log('Current Directory: ' + process.cwd());
 	const packageFileLocation = await prompt('Please enter the location/name of your package.xml file: ');
 	if (!fs.existsSync(packageFileLocation)) log('File not found. Please check the location and try again',true,'red');
@@ -301,16 +343,29 @@ async function getPackageXML(){
 
 /**
 * @Description navigates the current working directory to that of the project root folder.
-* @Todo Make this much more robust. It really sucks right now.
 */
-function navigateToProjectDir(){
-	if(!process.cwd().endsWith(config.projectName)) process.chdir(config.projectName);
+function navigateUpToProjectDir(){
+	//get the current folder path.
+	let currentPath = process.cwd();
+	
+	//if the name of our project exists in the path (which it always should), but it's not the last part of the path (meaning it's not the current directory). Then move up a folder until it is.
+	let maxIterations = 20;
+	let currentIterations = 0;
+	while(!currentPath.endsWith(config.projectName)) {	
+		process.chdir(config.projectName);
+		currentPath = process.cwd();
+		
+		//sanity check just to ensure we don't somehow end up in an infinite loop. 
+		currentIterations++;
+		if(currentIterations > maxIterations) break;
+	}
 }
 
 /**
 * @Description validates that a given string is a valid name for a github branch. 
 * @Param branchName the string to check for validity
 * @Return boolean value. True if the string is valid, false if it is not.
+* @TODO Update this function to have better rules/matching.
 */
 function validateGitBranchName(branchName){
 	/*
@@ -369,8 +424,14 @@ async function fetchChangeSets(changeSetNames, copyToProjectFolder) {
     return [];
 }
 
+/**
+* @Description When a change set is downloaded using force:mdapi:retrieve it goes into the config.downloadedPackagesFolder. For those contents to be properly integrated into the repo they need to be copied into the 
+* actual project folder. This function does a recursive copy from the package folder into the project folder.
+* @Param packageName The name of the folder/change set that contains the content to be copied into the org folder
+* @TODO Make the copy destination configurable. Right now it just hard coded to write to the default force-app\main\default\ folder.
+*/ 
 function copyPackageIntoProjectFolder(packageName){
-	copyFolderRecursiveSync(`${config.downloadedPackagesFolder}\\${packageName}`, config.projectName )
+	copyFolderRecursiveSync(`${config.downloadedPackagesFolder}\\${packageName}`, `${config.projectName}\\force-app\\main\\default\\`);
 }
 /**
 * @Description copies all contents of source directory into target directory
@@ -400,6 +461,10 @@ function copyFolderRecursiveSync( source, target ) {
     }
 }
 
+/**
+* @Description given an array of strings that are valid change sets, this function will create branches for each, download the change set contents, add the downloaded files to the branch, and push the branches into the remote repo.
+* @Param branchNames an array of strings that are valid change set names in the connected Salesforce org.
+*/
 async function populateAndPushBranches(branchNames){
 	for (const branchName of branchNames) {
 		log(`\n\n\n------------------------- PROCESSING BRANCH ${branchName} ------------------------\n\n\n`,true,'green');
@@ -421,7 +486,7 @@ async function populateAndPushBranches(branchNames){
 		}		
 		
 		//set our commit message from the package.xml description
-		let packageXMLJSON = getPackageXMLAsJson(branchName);
+		let packageXMLJSON = getPackageXMLAsObject(branchName);
 		let commitMessage = packageXMLJSON.Package.description;
 		await gitCommit(commitMessage)
 		
@@ -439,6 +504,9 @@ function loadConfig(configFileName) {
     return readJSONFromFile(configFileName);
 }
 
+/**
+* @Description writes the current working config back into the config.json file
+*/
 function saveConfig(){
 	fs.writeFileSync('config.json', JSON.stringify(config, null, 2), function(err){
 		if(err) {
@@ -447,7 +515,13 @@ function saveConfig(){
 		log("The file was saved!");
 	});
 }
-function getPackageXMLAsJson(folderName){
+
+/**
+* @Description reads the package.xml file from a given folder (change set) and returns it as a JSON object.
+* @Param folderName the name of the folder (change set) in the config.downloadedPackagesFolder folder to read the package.xml of.
+* @Return a javascript object representation of the package.xml file.
+*/
+function getPackageXMLAsObject(folderName){
 	let packageXMLAsJson = {};
 	const packageXMLAsString = fs.readFileSync(`${config.downloadedPackagesFolder}\\${folderName}\\package.xml`, function (err) {
         log("File not found or unreadable. Skipping import" + err.message, true, "red");
@@ -476,9 +550,28 @@ function readJSONFromFile(fileName) {
     return parsedJSON;
 }
 
-function convertPackgeNameToGitName(branchName){
-	branchName = branchName.replace(/\s/g , "-");
+/**
+* @Description converts a package name to a valid Git branch name by replacing spaces with dashes.
+* @Param packageName a string to convert into a valid Git branch name.
+* @Return a string that is the converted/fixed name/
+*/
+function convertPackgeNameToGitName(packageName){
+	let branchName = branchName.replace(/\s/g , "-");
 	return branchName;
+}
+
+/**
+* @Description masks a string so that it can be output/logged without revealing it's entire value. Useful for logging statments that include passwords/keys/personal access tokens etc.
+* @Param maskString a string to be masked
+* @Param maskPercent a numeric value that controls how much of the string should be masked. Defaults to 80 (80%) if not provided.
+* @Return a masked version of the string with [maskPercent] amount of the string replaces with asterisks.
+*/
+function maskString(maskString, maskPercent = 80){
+	let stringLength = maskString.length;
+	let numMaskChars = Math.round(stringLength * (maskPercent/100));
+	let mask = Array(numMaskChars).join('*');
+	let maskedString = mask + maskString.substr(stringLength-(stringLength-numMaskChars));
+	return maskedString;
 }
 
 async function setGitRemoteURL(repoUrl){
@@ -530,7 +623,7 @@ async function checkIfBranchExists(branchName){
 }
 
 async function authorizeGithubCLI(token){
-	log(`Authorizing Github connection with personal access token: *************************************`,true);
+	log(`Authorizing Github connection with personal access token: ${maskString(token)}`,true);
 	//we have to read the token from a file, so we have to create that now
 	fs.writeFileSync('temp_token', token, function(err){
 		if(err) {
@@ -545,13 +638,23 @@ async function authorizeGithubCLI(token){
 	return commandResponse;
 }
 
-//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
+/**
+* @Description uses the Github CLI to create a pull request.
+* @Param branchName the name of a Git branch to make a pull request for
+* @Param title the title to give to this pull request.
+* @Param description the description for this pull request.
+* @TODO allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
+*/
 async function makeGithubPR(branchName, title, description){
-	let command  = `git pr create -H ${branchName} --title "${title}" --body "${description}`;
+	let command  = `gh pr create -H ${branchName} --title "${title}" --body "${description}`;
 	log(`Submitting Pull Request for branch ${branchName} with command: ${command}`);
 	return await runCommand(command);
 	
 }
+
+/**
+* @Description clears the terminal screen.
+*/
 function clearScreen(){
 	console.log('\033[2J');
 	process.stdout.write('\033c');
@@ -562,7 +665,8 @@ function clearScreen(){
  * @Param arguments an array of arguments to pass to the command.
  * @Return javascript promise object that contains the result of the command execution
  */
-function runCommand(command, arguments, nolog) {
+function runCommand(command, arguments = [], nolog) {
+	if(!nolog) log(command + ' arguments: ' + arguments);
     let p = spawn(command, arguments, { shell: true, windowsVerbatimArguments: true });
     return new Promise((resolveFunc) => {
         p.stdout.on("data", (x) => {
