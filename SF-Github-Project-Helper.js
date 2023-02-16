@@ -433,6 +433,7 @@ function navigateToProjectDir(){
 			//sanity check just to ensure we don't somehow end up in an infinite loop. 
 			currentIterations++;
 			if(currentIterations > maxIterations) break;
+			if(currentPath.endsWith(config.projectName)) break;
 		}
 	}
 	//if the name of this project is not in the path, then we must be above it in the directory structure. The best we can do is try to navigate down into it if it exists. If it isn't there then we have no idea 
