@@ -708,11 +708,11 @@ async function changeToGitBranch(branchName){
 * @Param branchName a string that is the name of the branch to push
 * @Return Object with result of operation, including 'exit_code' and 'output
 */
-async function pushBranchToRemote(localBranchName,remoteBranchName='origin'){
-	localBranchName = convertPackgeNameToGitName(localBranchName);
+async function pushBranchToRemote(branchName){
+	branchName = convertPackgeNameToGitName(branchName);
 	//let command = `git push -u origin ${branchName}`
-	let command = `git push -u ${remoteBranchName} HEAD`
-	log(`Pushing branch to remote ${localBranchName} to ${remoteBranchName}: ${command}`,true);
+	let command = `git push -u origin HEAD`
+	log(`Pushing branch to remote ${branchName}: ${command}`,true);
 	return await runCommand(command);
 }
 
