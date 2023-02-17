@@ -624,11 +624,13 @@ function getPackageXMLAsObject(folderName){
  * @Return a JSON object.
  */
 function readJSONFromFile(fileName) {
-    const changeSetsJsonString = fs.readFileSync(fileName, function (err) {
+    let changeSetsJsonString = fs.readFileSync(fileName, 'utf-8', function (err) {
         log("File not found or unreadable. Skipping import" + err.message, true, "red");
         return null;
     });
 
+	//strip any comments from our JSON sting
+	changeSetsJsonString = changeSetsJsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m);
     const parsedJSON = JSON.parse(changeSetsJsonString);
     return parsedJSON;
 }

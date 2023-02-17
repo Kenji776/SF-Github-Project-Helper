@@ -1,14 +1,34 @@
 {
-  "skipExistingChangeSets": true,
-  "rootFolder": "packages",
-  "changesetJSONFile": "changeSetNames.json",
-  "downloadedPackagesFolder": "downloaded_packages",
-  "salesforceUsername": "",
-  "githubRepoUrl": "",
-  "gitUsername": "",
-  "projectName": "",
-  "salesforceLoginURL": "https://test.salesforce.com",
-  "githubPersonalAccessToken": "",
-  "autoCreatePullRequest": true,
-  "autofillPullRequestDetails":true
+	//should the program skip downloading change sets it detects it has already fetched in the past?
+	"skipExistingChangeSets": true,
+	
+	//where should change set data be downloaded before being merged into the project? This should be a JSON formatted array of strings of change setnames.
+	"changesetJSONFile": "changeSetNames.json",
+	
+	//where should change set data be downloaded before being merged into the project?
+	"downloadedPackagesFolder": "downloaded_packages",
+	
+	//Salesforce username to use to connect to org
+	"salesforceUsername": "",
+	
+	//the HTTPS Github url. Found on the repo itself.
+	"githubRepoUrl": "",
+	
+	//the Github username to use to connect to the repo
+	"gitUsername": "",
+	
+	//name for this project folder
+	"projectName": "",
+	
+	//the url of the Salesforce login endpoint. Usually either https://test.salesforce.com, https://login.salesforce.com or https://[your custom domain here].my.salesforce.com
+	"salesforceLoginURL": "https://test.salesforce.com",
+	
+	//a Github Personal Access Token that grants read and write access to the repo
+	"githubPersonalAccessToken": "",
+	
+	//Should the program use the Github CLI to automatically create a pull request on branch create?
+	"autoCreatePullRequest": true,
+	
+	//If autoCreatePullRequest is set to true, should the PR details (title and description) be pulled from the last commit instead of being entered manually?
+	"autofillPullRequestDetails":true
 }
