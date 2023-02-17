@@ -68,6 +68,7 @@ async function init() {
 */
 function checkConfigsValid(configObject){
 	
+	let propertiesThatCanBeNull = ['branchToPRAgainst']
 	//return object
 	let configValid = {
 		valid: true,
@@ -83,6 +84,7 @@ function checkConfigsValid(configObject){
 	//check to ensure all properties of the config are populated.
 	//TODO: Make this list of required properties a variable of some kind. All properties may not be required in the future and this check could be over aggressive.
 	for(let property in configObject){
+		if(propertiesThatCanBeNull.indexOf(property) > -1) continue;
 		if(configObject[property] == "") {
 			configValid.valid = false;
 			configValid.message = `Property ${property} in config must not be empty. Please populate it and try again`;	
@@ -389,11 +391,14 @@ async function submitGithubPullRequest(branchName){
 	
 	//if we are not auto filling the PR details, then ask for them from the user now.
 	if(!config.autofillPullRequestDetails){
-		title = await prompt('Please title for pull request: ');
-		description = await prompt('Please description for pull request: ');		
+		title = await prompt('Title for pull request: ');
+		description = await prompt('Description for pull request: ');		
 	}
 	//todo allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
-	let result = await makeGithubPR(branchName, title, description);
+	
+	let baseBranch = config.branchToPRAgainst;
+	if(!baseBranch || baseBranch == '') baseBranch = await prompt('Branch to merge into (default is master): ');
+	let result = await makeGithubPR(branchName, title, description, baseBranch);
 	 
 	console.log('Result of PR call');
 	console.log(JSON.stringify(result,null,2));
@@ -703,10 +708,10 @@ async function changeToGitBranch(branchName){
 * @Param branchName a string that is the name of the branch to push
 * @Return Object with result of operation, including 'exit_code' and 'output
 */
-async function pushBranchToRemote(branchName){
+async function pushBranchToRemote(localBranchName,remoteBranchName='origin'){
 	branchName = convertPackgeNameToGitName(branchName);
 	//let command = `git push -u origin ${branchName}`
-	let command = `git push -u origin HEAD`
+	let command = `git push -u ${remoteBranchName} HEAD`
 	log(`Pushing branch to remote ${branchName}: ${command}`,true);
 	return await runCommand(command);
 }
@@ -770,10 +775,11 @@ async function authorizeGithubCLI(token){
 * @Param branchName the name of a Git branch to make a pull request for
 * @Param title the title to give to this pull request.
 * @Param description the description for this pull request.
+* @Param base the branch in which to merge this branch.
 * @TODO allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
 */
-async function makeGithubPR(branchName, title='', description=''){
-	let command  = `gh pr create -H ${branchName}`;
+async function makeGithubPR(branchName, title='', description='', base='master'){
+	let command  = `gh pr create -H ${branchName} -B ${base}`;
 	if(!title || !description || title == '' || description == ''){
 		log(`Creating pull request for branch ${branchName}. Autofilling title and description from commit`);
 		command +=' --fill';
