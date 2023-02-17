@@ -1,3 +1,4 @@
+//comments are normally not allowed in JSON, but the program strips them out before parsing.
 {
 	//should the program skip downloading change sets it detects it has already fetched in the past?
 	"skipExistingChangeSets": true,
