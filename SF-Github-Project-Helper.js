@@ -108,9 +108,10 @@ async function displayMenu(){
 	console.log('5) Push Changesets to GIT from config file');
 	console.log('6) Push Changesets to GIT by entering names');
 	console.log('7) Push Package.xml file contents to GIT');
-	console.log('8) View Config File Information');
-	console.log('9) Authorize Github CLI');
-	console.log('10) Exit');
+	console.log('8) Get Package.xml from change set');
+	console.log('9) View Config File Information');
+	console.log('10) Authorize Github CLI');
+	console.log('11) Exit');
 	
 	let menuChoice = await prompt('\nEnter Selection: ');
 	
@@ -127,7 +128,15 @@ async function displayMenu(){
 			break;
 			
 		case '2':
-			await runCommand('git remote show origin');
+			let navToProjectDir = navigateToProjectDir();
+			
+			if(navToProjectDir === 1){
+				await runCommand('git remote show origin');
+				process.chdir('..');
+				
+			}else{
+				log('No project folder defined. Please connect your repo and try again',true,'red');
+			}
 			break;
 			
 		case '3':
@@ -152,19 +161,21 @@ async function displayMenu(){
 		case '7':
 			await getPackageXML();
 			break;
-			
 		case '8':
+		
+			let changeSetName =  await prompt('Enter Name of change set: ');
+			await getPackageFileFromChangeSet(changeSetName);
+			break;			
+		case '9':
 			console.log(config);
 			break;		
-		case '9':
+		case '10':
 			await authorizeGithubCLI(config.githubPersonalAccessToken);
 			break;
-		case '10':
+		case '11':
 			finish();
 			break;
-		case '11':
-			submitGithubPullRequest('test-of-automatic-pr-open');
-			break;
+
 	}
 	
 	displayMenu();
@@ -327,23 +338,47 @@ async function getChangeSetsFromInput(){
 /**
 *@Description Initiates an interactive prompt to allow a user to download the contents of a specified package.xml file and push them into a new branch, then commit that branch and push it to the remote repo.
 */
-async function getPackageXML(){
+async function getPackageXML(packageFileLocation='',branchName=''){
 	navigateToProjectDir();
-	console.log('Current Directory: ' + process.cwd());
-	const packageFileLocation = await prompt('Please enter the location/name of your package.xml file: ');
-	if (!fs.existsSync(packageFileLocation)) log('File not found. Please check the location and try again',true,'red');
+	let cwd = process.cwd();
+	console.log(`Current Directory: ${cwd}`);
+	
+	
+	if(packageFileLocation==''){
+		packageFileLocation = await prompt('Please enter the location/name of your package.xml file: ');
+	}else {
+		log(`Attempting to load manifest from ${packageFileLocation}`,true);
+	}
+	
+	if (!fs.existsSync(packageFileLocation)) log(`File not found. Please check the location and try again. Attempted to read from path: ${cwd}/${packageFileLocation}`,true,'red');
 	else {		
-		var branchName = '';
-		var validName = false;
+		let validName = validateGitBranchName(branchName);;
 		while(!validName){
 			branchName =  await prompt('Enter the name for your Git branch (story|bug/user-story-name): ');
 			validName = validateGitBranchName(branchName);
 		}
-		await createGitBranch(branchName);
+		
+		let pullResult = await fetchGitBranch(config.branchToPRAgainst);
+
+		if(pullResult.exit_code != 0) {
+			log(`Error pulling git remote branch ${config.branchToPRAgainst}. ${pullResult.output}`,true,'red');
+			return false;
+		}
+	
+		let createBranchResult = await createGitBranch(branchName);
+
+		if(createBranchResult.exit_code != 0) {
+			log(`Error pulling git remote branch ${branchName}. This may not be a fatal error if the problem is that the branch already exists. ${createBranchResult.output}`,true,'red');
+		}
 		
 		//checkout the branch
-		await changeToGitBranch(branchName);		
+		let checkoutBranchResult = await changeToGitBranch(branchName);		
 
+		if(checkoutBranchResult.exit_code != 0) {
+			log(`Error checking out branch ${branchName}. ${checkoutBranchResult.output}`,true,'red');
+			return false;
+		}
+		
 		//because it would be pretty difficult to figure out what elements in a package.xml file create what files (actually you might just be able to concat the type+'/'+membername+'.xml' and get the path that way. Wouldn't
 		//work with wildcard retreives though...)
 		//instead we just put a file system watcher on the directory. Any file that gets modified that ends with .xml is added to our list of files to add to our git branch.
@@ -353,31 +388,81 @@ async function getPackageXML(){
 		})
 	
 		log('Fetching package contents',true,'green');
-		await runCommand(`sfdx force:source:retrieve -x ${packageFileLocation} -u ${config.salesforceUsername}`);
+		let fetchResult = await runCommand(`sfdx force:source:retrieve -x "${packageFileLocation}" -u ${config.salesforceUsername}`);
 
+		if(fetchResult.exit_code != 0) {
+			log(`Error fetching package.xml contents ${fetchResult.output}`,true,'red');
+			return false;
+		}
+		
 		//remove duplicates.
 		modifiedFiles = [...new Set(modifiedFiles)];
 		
 		watcher.close();
-		
+		var numAddedFiles = 0;
+		var numErrors = 0;		
 		log('Staging modified/created files',true,'green');		
 		for(const fileName of modifiedFiles){
 			log(`Adding file ${fileName} to branch`,true,'green');
-			await runCommand(`git add ${fileName}`);
+			let addResult = await runCommand(`git add ${fileName}`);
+			
+			if(addResult.exit_code != 0) {
+				log(`Error adding file to commit. ${addResult.output}`,true,'red');
+				numErrors++;
+			}else{
+				numAddedFiles++;
+			}
+			
 		}
+		log(`Added ${numAddedFiles} files to commit`,true,'green');		
+		if(numErrors > 0) log(`Encountered ${numErrors} errors adding files`,true,'red');			
 		//TODO: Attempt to read description from package.xml here if it exists.
+		
+		//let packageDescription = getPackageXMLAsObject();
+		
 		let commitMessage  = await prompt('Please enter a commit description (what is this branch for?): ');
 		
-		await gitCommit(commitMessage);
+		let commitResult = await gitCommit(commitMessage);
+
+		if(commitResult.exit_code != 0) {
+			log(`Error commiting files ${commitResult.output}`,true,'red');
+			return false;
+		}
 		
-		await pushBranchToRemote(branchName);
+		let pushResult = await pushBranchToRemote(branchName);
+
+		if(pushResult.exit_code != 0) {
+			log(`Error pushing branch to remote ${pushResult.output}`,true,'red');
+			return false;
+		}
 		
 		if(config.autoCreatePullRequest){
-			await submitGithubPullRequest(branchName);
+			let submitPRresult = await submitGithubPullRequest(branchName);
+			
+			if(submitPRresult.exit_code != 0) {
+				log(`Error submitting pull request ${submitPRresult.output}`,true,'red');
+				return false;
+			}
 		}
 	}
 }
 
+async function getPackageFileFromChangeSet(changeSetName){
+		let getPackageResult = await runCommand(`sfdx force:mdapi:retrieve -s -r ${config.projectName}/${config.downloadedPackagesFolder} -p "${changeSetName}" --unzip --zipfilename "${changeSetName}.zip"`);
+		
+		if(getPackageResult.exit_code != 0) {
+			log(`Error authorizing Github. ${getPackageResult.output}`,true,'red');
+			return false;
+		}else{
+			log(`Got package.xml from change set. Path is /${config.downloadedPackagesFolder}/${changeSetName}/package.xml`,true,'green');
+			
+			let loadPackageContents = await prompt('Would you like to create a branch for this package now? (Y/N):');
+			
+			if(loadPackageContents.toLowerCase() === 'y') {				
+				await getPackageXML(`${config.downloadedPackagesFolder}\\${changeSetName}\\package.xml`,changeSetName);
+			}
+		}
+}
 /**
 * @Description submits a github pull request for the given branch using the given title and description. If successful then attempts to open a browser tab to the PR so it can be merged.
 * @Param branchName the name of the branch to create a pull request for
@@ -412,6 +497,8 @@ async function submitGithubPullRequest(branchName){
 		var start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
 		await runCommand(start + ' ' + url);		
 	}
+	
+	return result;
 }
 
 /**
@@ -419,34 +506,46 @@ async function submitGithubPullRequest(branchName){
 */
 function navigateToProjectDir(){
 	//get the current folder path.
+	let startPath = process.cwd();
 	let currentPath = process.cwd();
 	
 	//if the name of our project exists in the path (which it always should), but it's not the last part of the path (meaning it's not the current directory). Then move up a folder until it is.
 	let maxIterations = 20;
 	let currentIterations = 0;
 	
-	//if we are withing a sub folder of the project directory, then navigate up until we get into it.
-	if(currentPath.indexOf(config.projectName) > -1){
+	
+	//if the name of this project is not in the path, then we must be above it in the directory structure. The best we can do is try to navigate down into it if it exists. If it isn't there then we have no idea 
+	//where in the directory structure the project folder is so there is nothing we can do.
+	if(fs.existsSync(config.projectName)){
+		log(`Changing into sub directory ${config.projectName}`);
+		process.chdir(config.projectName);
+		return 1;
+	}else if(currentPath.indexOf(config.projectName) > -1 && !currentPath.endsWith(config.projectName)){
+		
+		//if we are withing a sub folder of the project directory, then navigate up until we get into it.
+			
+		log(`index of ${config.projectName} in ${currentPath} ${currentPath.indexOf(config.projectName)}`);
+		log(`current path ends with ${config.projectName} - ${currentPath.endsWith(config.projectName)}`);
 		log(`Detected current working directory is sub directory of project folder.`);
+		
 		while(!currentPath.endsWith(config.projectName)) {	
-			log(`Navigating up a folder to try and find directory ${config.projectName}`);
-			console.log('Current path: ' + currentPath);
+			//log(`Navigating up a folder to try and find directory ${config.projectName}`);
+			//console.log('Current path: ' + currentPath);
 			
 			process.chdir('..');
 			currentPath = process.cwd();
 			
 			//sanity check just to ensure we don't somehow end up in an infinite loop. 
 			currentIterations++;
-			if(currentIterations > maxIterations) break;
-			if(currentPath.endsWith(config.projectName)) break;
+			if(currentIterations > maxIterations) {
+				process.chdir(startPath);
+				return 0;
+			}
+			if(currentPath.endsWith(config.projectName)) return 1;
 		}
 	}
-	//if the name of this project is not in the path, then we must be above it in the directory structure. The best we can do is try to navigate down into it if it exists. If it isn't there then we have no idea 
-	//where in the directory structure the project folder is so there is nothing we can do.
-	else{
-		log(`Changing into sub directory ${config.projectName}`);
-		if(fs.existsSync(config.projectName)) process.chdir(config.projectName);
-	}
+
+	return 0;
 }
 
 /**
@@ -463,6 +562,7 @@ function validateGitBranchName(branchName){
 	if(!result) log('Invalid GIT branch name',true,'red');
 	return result;
 	*/
+	if(!branchName || branchName == '') return false;
 	return true;
 	
 }
@@ -568,10 +668,21 @@ async function populateAndPushBranches(branchNames){
 		//add the related folder to the branch
 		//await addFolderToBranch(`${config.downloadedPackagesFolder}\\${branchName}`);
 		log('Staging modified/created files',true,'green');		
+		var numAddedFiles = 0;
+		var numErrors = 0;
 		for(const fileName of downloadedFiles){
 			log(`Adding file ${fileName} to branch`,true,'green');
-			await runCommand(`git add ${fileName}`);
-		}		
+			let addResult = await runCommand(`git add ${fileName}`);
+			
+			if(addResult.exit_code != 0) {
+				log(`Error adding file to commit. ${addResult.output}`,true,'red');
+				numErrors++;
+			}else{
+				numAddedFiles++;
+			}
+		}	
+		log(`Added ${numAddedFiles} files to commit`,true,'green');		
+		if(numErrors > 0) log(`Encountered ${numErrors} errors adding files`,true,'red');		
 		
 		//set our commit message from the package.xml description
 		let packageXMLJSON = getPackageXMLAsObject(branchName);
@@ -749,6 +860,11 @@ async function checkIfBranchExists(branchName){
 	else return false;
 }
 
+async function fetchGitBranch(branchName){
+	let command = `git fetch ${branchName}`;
+	log(`Adding folder to branch ${folderName}: ${command}`,true);
+	return await runCommand(command);
+}
 /**
 * @Description invokes the 'gh auth login' command to authorize the Github CLI to interact with the repo so pull requests may be created automatically.
 * @Param token a string that is the personal access token to authenticate to the repo.
@@ -779,13 +895,13 @@ async function authorizeGithubCLI(token){
 * @TODO allow for putting in extra flags for the pull command by reading from a file or something. Like automatically setting approvers/reviewers etc.
 */
 async function makeGithubPR(branchName, title='', description='', base='master'){
-	let command  = `gh pr create -H ${branchName} -B ${base}`;
+	let command  = `gh pr create -H "${branchName}" -B "${base}"`;
 	if(!title || !description || title == '' || description == ''){
 		log(`Creating pull request for branch ${branchName}. Autofilling title and description from commit`);
 		command +=' --fill';
 	}else{
 		log(`Creating pull request for branch ${branchName}. Title: ${title}. Description: ${description}`);
-		command += ` --title "${title}" --body "${description}`;
+		command += ` --title "${title}" --body "${description}"`;
 
 	}
 	log(`Submitting Pull Request for branch ${branchName} with command: ${command}`);

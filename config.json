@@ -7,7 +7,7 @@
 	"changesetJSONFile": "changeSetNames.json",
 	
 	//where should change set data be downloaded before being merged into the project?
-	"downloadedPackagesFolder": "downloaded_packages",
+	"downloadedPackagesFolder": "manifest",
 	
 	//Salesforce username to use to connect to org
 	"salesforceUsername": "",
