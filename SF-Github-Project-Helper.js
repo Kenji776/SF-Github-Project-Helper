@@ -358,7 +358,7 @@ async function getPackageXML(packageFileLocation='',branchName=''){
 			validName = validateGitBranchName(branchName);
 		}
 		
-		let pullResult = await fetchGitBranch(config.branchToPRAgainst);
+		let pullResult = await fetchGitBranch(config.sourceBranchToPullFrom);
 
 		if(pullResult.exit_code != 0) {
 			log(`Error pulling git remote branch ${config.branchToPRAgainst}. ${pullResult.output}`,true,'red');
@@ -437,11 +437,18 @@ async function getPackageXML(packageFileLocation='',branchName=''){
 		}
 		
 		if(config.autoCreatePullRequest){
-			let submitPRresult = await submitGithubPullRequest(branchName);
+			log(`Submitting Pull Requests...`,true);
 			
-			if(submitPRresult.exit_code != 0) {
-				log(`Error submitting pull request ${submitPRresult.output}`,true,'red');
-				return false;
+			for(const thisPrBranch of config.branchesToPRAgainst){
+				
+				log(`Submitting Pull Request to branch  ${thisPrBranch}`,true);
+				
+				let submitPRresult = await submitGithubPullRequest(thisPrBranch);
+				
+				if(submitPRresult.exit_code != 0) {
+					log(`Error submitting pull request ${submitPRresult.output}`,true,'red');
+					return false;
+				}
 			}
 		}
 	}

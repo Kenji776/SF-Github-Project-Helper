@@ -33,6 +33,9 @@
 	//If autoCreatePullRequest is set to true, should the PR details (title and description) be pulled from the last commit instead of being entered manually?
 	"autofillPullRequestDetails":true,
 	
-	//the name of the github branch to commit your changes to. Leave blank to specify at run time.
-	"branchToPRAgainst":"master"
+	//source branch to pull from
+	"sourceBranchToPullFrom": "master",
+	
+	//the names of the github branches to commit your changes to. Leave blank to specify at run time.
+	"branchesToPRAgainst": ["master"]
 }
